@@ -328,22 +328,23 @@ function lose(reason){snd('lose');
  <button class="btn big primary" data-a="retry">🔁 לנסות שוב</button><button class="btn" data-a="map">🗺️ מפה</button>`)}
 function confetti(){for(let i=0;i<80;i++){const k=Math.floor(Math.random()*6);parts.push({x:Math.random()*W,y:-10,vx:(Math.random()-.5)*2,vy:Math.random()*3,life:2,col:COLORS[k].c,size:5,delay:Math.random()*400})}}
 function modal(html){$('modalCard').innerHTML=html;$('modal').classList.remove('hidden')}
-function closeModal(){$('modal').classList.add('hidden')}
+function closeModal(){removeArrow&&document.getElementById('iosArrow')&&document.getElementById('iosArrow').remove();$('modal').classList.add('hidden')}
 $('modal').addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;snd('click');const a=b.dataset.a;
  if(a==='next'){closeModal();startLevel(levelN+1)}else if(a==='retry'){closeModal();startLevel(levelN)}else if(a==='map'){closeModal();state='idle';openMap()}
+ else if(a==='install'){closeModal();install();return}else if(a==='copy'){navigator.clipboard?.writeText(location.href).then(()=>toast('הקישור הועתק ✔'));return}
  else if(a==='resume'){closeModal();state='play'}else if(a==='close'){closeModal();if(state==='paused')state='play'}else if(a==='home'){closeModal();state='idle';show('home')}
  else if(a.startsWith('speed')){save.speed=+a.slice(5);persist();settings()}else if(a==='mute'){save.mute=!save.mute;persist();settings()}else if(a==='sym'){save.symbols=!save.symbols;persist();settings()}
  else if(a==='reset'){if(confirm('למחוק את כל ההתקדמות?')){save.unlocked=1;save.stars={};save.best={};persist();settings();homeInfo()}}
 });
 function pause(){if(state!=='play')return;state='paused';
  modal(`<h2>⏸ הפסקה</h2><button class="btn big primary" data-a="resume">▶ להמשיך</button><br><button class="btn" data-a="retry">🔁 להתחיל מחדש</button><button class="btn" data-a="map">🗺️ מפה</button><br>
- <button class="btn" data-a="mute">${save.mute?'🔇 צליל כבוי':'🔊 צליל פועל'}</button>`)}
+ <button class="btn" data-a="mute">${save.mute?'🔇 צליל כבוי':'🔊 צליל פועל'}</button>${isStandalone()?'':'<br><button class="btn install" data-a="install">📲 הורדה לטלפון</button>'}`)}
 function settings(){const inGame=state==='paused';
  modal(`<h2>⚙️ הגדרות</h2><p>מהירות המשחק:</p><div class="opt">${[[.6,'איטי 🐢'],[1,'רגיל'],[1.5,'מהיר 🐇']].map(([v,l])=>`<button class="btn ${save.speed==v?'sel':''}" data-a="speed${v}">${l}</button>`).join('')}</div>
  <div class="opt"><button class="btn ${save.mute?'':'sel'}" data-a="mute">${save.mute?'🔇 צליל כבוי':'🔊 צליל פועל'}</button>
  <button class="btn ${save.symbols?'sel':''}" data-a="sym">${save.symbols?'✔ סימנים על הבועות':'✖ בלי סימנים'}</button></div>
  <p style="font-size:17px">הסימנים (לב, טיפה, כוכב, עלה, יהלום, ריבוע) עוזרים להבדיל בין הצבעים.</p>
- <button class="btn big primary" data-a="${inGame?'resume':'close'}">סגור</button><br><button class="btn small" data-a="reset">מחיקת התקדמות</button>`)}
+ ${isStandalone()?'':'<button class="btn install" data-a="install">📲 הורדה לטלפון</button><br>'}<button class="btn big primary" data-a="${inGame?'resume':'close'}">סגור</button><br><button class="btn small" data-a="reset">מחיקת התקדמות</button>`)}
 function help(first){
  modal(`<h2>${first?'ברוכה הבאה! 👋':'❓ איך משחקים'}</h2><ul>
  <li>👆 <b>גוררים את האצבע</b> כדי לכוון — הנקודות מראות לאן הבועה תטוס.</li>
@@ -382,7 +383,38 @@ $('jumpGo').onclick=()=>{const n=Math.max(1,Math.min(MAXLEVEL,+$('jumpInput').va
 $('mapBack').onclick=()=>{show('home');homeInfo()};
 $('btnPlay').onclick=()=>{snd('click');startLevel(Math.min(save.unlocked,MAXLEVEL))};
 $('btnMap').onclick=()=>{snd('click');openMap()};$('btnHelp').onclick=()=>help();$('btnSettings').onclick=()=>settings();
-$('btnPause').onclick=pause;$('bstSwap').onclick=swap;
+$('btnPause').onclick=pause;
+// ---------- install (PWA) ----------
+const ua=navigator.userAgent,isIOS=/iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const iosInApp=isIOS&&(/CriOS|FxiOS|EdgiOS|OPiOS|GSA|FBAN|FBAV|Instagram|Line|WhatsApp|Telegram|Twitter/i.test(ua)||!/Safari/i.test(ua));
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e});
+window.addEventListener('appinstalled',()=>{deferredPrompt=null;toast('המשחק נוסף למסך הבית! 🎉');applyStandalone()});
+function applyStandalone(){if(isStandalone()){document.body.classList.add('standalone');$('btnInstall').classList.add('hidden')}}
+function arrow(cls){removeArrow();const a=document.createElement('div');a.className='ios-arrow '+(cls||'');a.id='iosArrow';a.textContent=cls==='top'?'⬆️':'⬇️';document.body.appendChild(a)}
+function removeArrow(){const a=$('iosArrow');if(a)a.remove()}
+async function install(){snd('click');
+ if(isStandalone()){toast('המשחק כבר על המסך שלך 😊');return}
+ if(deferredPrompt){deferredPrompt.prompt();try{const r=await deferredPrompt.userChoice;if(r.outcome==='accepted')toast('מעולה! האייקון נוסף 🎉')}catch(e){}deferredPrompt=null;return}
+ if(iosInApp){modal(`<h2>📲 הורדה לטלפון</h2><p>כדי לשים את המשחק על מסך הבית צריך לפתוח אותו ב<b>ספארי</b> 🧭.</p>
+  <div class="step"><b class="n">1</b><span>לחצי על <b>⋯</b> או על כפתור השיתוף בדפדפן הזה</span></div><div class="step"><b class="n">2</b><span>בחרי <b>"פתח בספארי"</b></span></div>
+  <div class="step"><b class="n">3</b><span>בספארי לחצי שוב על <b>📲 הורדה לטלפון</b></span></div>
+  <p style="text-align:center;direction:ltr;font-size:17px">${location.href}</p><button class="btn" data-a="copy">📋 העתקת הקישור</button><br><button class="btn big primary" data-a="close">הבנתי 👍</button>`);return}
+ if(isIOS){const iPad=/iPad/.test(ua)||(navigator.platform==='MacIntel');arrow(iPad?'top':'');
+  modal(`<h2>📲 הורדה לאייפון</h2>
+  <div class="step"><b class="n">1</b><span>לחצי על כפתור <b>השיתוף</b> <span style="font-size:30px">⬆️⃞</span> (ריבוע עם חץ למעלה) — ${iPad?'למעלה בצד ימין':'בתחתית המסך'}</span></div>
+  <div class="step"><b class="n">2</b><span>גללי ובחרי <b>"הוספה למסך הבית" ➕</b></span></div>
+  <div class="step"><b class="n">3</b><span>לחצי <b>"הוסף"</b> למעלה — והאייקון יופיע על הטלפון! 🫧</span></div>
+  <button class="btn big primary" data-a="close">הבנתי 👍</button>`);return}
+ modal(`<h2>📲 הורדה לטלפון</h2>
+  <div class="step"><b class="n">1</b><span>פתחי את המשחק בדפדפן <b>כרום</b></span></div>
+  <div class="step"><b class="n">2</b><span>לחצי על <b>⋮</b> (שלוש נקודות למעלה)</span></div>
+  <div class="step"><b class="n">3</b><span>בחרי <b>"הוספה למסך הבית"</b> או <b>"התקנת אפליקציה"</b></span></div>
+  <button class="btn big primary" data-a="close">הבנתי 👍</button>`)}
+$('btnInstall').onclick=install;applyStandalone();
+window.matchMedia('(display-mode: standalone)').addEventListener?.('change',applyStandalone);
+$('bstSwap').onclick=swap;
 $('bstBomb').onclick=()=>{if(boosts.b&&state==='play'){boost=boost==='b'?null:'b';updateHud();snd('click')}};
 $('bstRainbow').onclick=()=>{if(boosts.r&&state==='play'){boost=boost==='r'?null:'r';updateHud();snd('click')}};
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pause()});
